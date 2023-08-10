@@ -7,12 +7,10 @@ from functools import lru_cache
 import pandas as pd
 from openai.embeddings_utils import cosine_similarity, get_embedding
 
+from buster.utils import convert_dataframe
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
-
-def convert_dataframe(df):
-    return df.drop("embedding", axis=1).to_records().tolist()
 
 
 class Validator(ABC):
@@ -55,7 +53,7 @@ class Validator(ABC):
 
         before_order = matched_documents.index.tolist()
 
-        with Span({"input": convert_dataframe(matched_documents)}, "rerank_docs") as span:
+        with Span({"input": convert_dataframe(matched_documents, drop_columns="embedding")}, "rerank_docs") as span:
             answer_embedding = self.get_embedding(
                 answer,
                 engine=self.embedding_model,
@@ -68,7 +66,10 @@ class Validator(ABC):
             after_order = matched_documents.index.tolist()
 
             span.set_outputs(
-                {"output": convert_dataframe(sorted_matched_documents), "same_order": before_order == after_order}
+                {
+                    "output": convert_dataframe(sorted_matched_documents, drop_columns="embedding"),
+                    "same_order": before_order == after_order,
+                }
             )
 
             return sorted_matched_documents

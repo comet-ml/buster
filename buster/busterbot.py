@@ -10,6 +10,7 @@ from comet_llm import Span
 from buster.completers import Completer, Completion, DocumentAnswerer
 from buster.retriever import Retriever
 from buster.validators import Validator
+from buster.utils import convert_dataframe
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -106,7 +107,7 @@ class Buster:
             with Span({"user_input": user_input, "source": source}, "retrieve-context") as span:
                 matched_documents = self.retriever.retrieve(user_input, source=source)
 
-                span.set_outputs({"matched_documents": json.loads(matched_documents.to_json())})
+                span.set_outputs({"matched_documents": convert_dataframe(matched_documents, drop_columns="embedding")})
 
             completion: Completion = self.document_answerer.get_completion(
                 user_input=user_input,

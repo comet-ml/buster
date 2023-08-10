@@ -45,7 +45,7 @@ def user(user_input, history):
 
 def chat(history):
     user_input = history[-1][0]
-    start_chain(inputs={"user_input": user_input}, project_name="mila-buster-test")
+    start_chain(inputs={"user_input": user_input}, project="buster-test")
 
     with Span({"user_input": user_input}, "llm-generation") as span:
         completion = buster.process_input(user_input)
