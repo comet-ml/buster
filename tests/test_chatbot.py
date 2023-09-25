@@ -10,7 +10,7 @@ import pytest
 from buster.busterbot import Buster, BusterConfig
 from buster.completers import ChatGPTCompleter, Completer, Completion, DocumentAnswerer
 from buster.documents_manager import DeepLakeDocumentsManager
-from buster.formatters.documents import DocumentsFormatter
+from buster.formatters.documents import DocumentsFormatterHTML
 from buster.formatters.prompts import PromptFormatter
 from buster.retriever import DeepLakeRetriever, Retriever
 from buster.tokenizers.gpt import GPTTokenizer
@@ -152,7 +152,7 @@ def vector_store_path(tmp_path_factory):
     # Add the documents (will generate embeddings)
     dm = DeepLakeDocumentsManager(vector_store_path=dm_path)
     df = pd.read_csv(DOCUMENTS_CSV)
-    dm.add(df, num_workers=1)
+    dm.add(df, num_workers=NUM_WORKERS)
     return dm_path
 
 
@@ -184,7 +184,7 @@ def test_chatbot_real_data__chatGPT(vector_store_path):
     tokenizer = GPTTokenizer(**buster_cfg.tokenizer_cfg)
     document_answerer = DocumentAnswerer(
         completer=ChatGPTCompleter(**buster_cfg.completion_cfg),
-        documents_formatter=DocumentsFormatter(tokenizer=tokenizer, **buster_cfg.documents_formatter_cfg),
+        documents_formatter=DocumentsFormatterHTML(tokenizer=tokenizer, **buster_cfg.documents_formatter_cfg),
         prompt_formatter=PromptFormatter(tokenizer=tokenizer, **buster_cfg.prompt_formatter_cfg),
     )
     validator: Validator = QuestionAnswerValidator(**buster_cfg.validator_cfg)
@@ -221,7 +221,7 @@ def test_chatbot_real_data__chatGPT_OOD(vector_store_path):
     tokenizer = GPTTokenizer(**buster_cfg.tokenizer_cfg)
     document_answerer = DocumentAnswerer(
         completer=ChatGPTCompleter(**buster_cfg.completion_cfg),
-        documents_formatter=DocumentsFormatter(tokenizer=tokenizer, **buster_cfg.documents_formatter_cfg),
+        documents_formatter=DocumentsFormatterHTML(tokenizer=tokenizer, **buster_cfg.documents_formatter_cfg),
         prompt_formatter=PromptFormatter(tokenizer=tokenizer, **buster_cfg.prompt_formatter_cfg),
     )
     validator: Validator = QuestionAnswerValidator(**buster_cfg.validator_cfg)
@@ -251,7 +251,7 @@ def test_chatbot_real_data__no_docs_found(vector_store_path):
         tokenizer = GPTTokenizer(**buster_cfg.tokenizer_cfg)
         document_answerer = DocumentAnswerer(
             completer=ChatGPTCompleter(**buster_cfg.completion_cfg),
-            documents_formatter=DocumentsFormatter(tokenizer=tokenizer, **buster_cfg.documents_formatter_cfg),
+            documents_formatter=DocumentsFormatterHTML(tokenizer=tokenizer, **buster_cfg.documents_formatter_cfg),
             prompt_formatter=PromptFormatter(tokenizer=tokenizer, **buster_cfg.prompt_formatter_cfg),
             **buster_cfg.documents_answerer_cfg,
         )

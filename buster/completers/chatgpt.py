@@ -1,4 +1,5 @@
 from typing import Iterator
+from comet_llm import Span
 
 import openai
 
@@ -15,12 +16,17 @@ class ChatGPTCompleter(Completer):
             {"role": "system", "content": prompt},
             {"role": "user", "content": user_input},
         ]
+        stream = completion_kwargs.get("stream")
+
+        inputs = completion_kwargs.copy()
+        inputs["messages"] = messages
+
         response = openai.ChatCompletion.create(
             messages=messages,
             **completion_kwargs,
         )
 
-        if completion_kwargs.get("stream") is True:
+        if stream is True:
             # We are entering streaming mode, so here were just wrapping the streamed
             # openai response to be easier to handle later
             def answer_generator():

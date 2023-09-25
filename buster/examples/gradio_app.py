@@ -1,9 +1,29 @@
+from typing import Optional, Tuple
+from comet_llm import start_chain, end_chain, Span
+
 import cfg
 import gradio as gr
 import pandas as pd
 from cfg import setup_buster
+import json
+
+from buster.completers import Completion
+
+# Typehint for chatbot history
+ChatHistory = list[list[Optional[str], Optional[str]]]
 
 buster = setup_buster(cfg.buster_cfg)
+
+
+def add_user_question(user_question: str, chat_history: Optional[ChatHistory] = None) -> ChatHistory:
+    """Adds a user's question to the chat history.
+
+    If no history is provided, the first element of the history will be the user conversation.
+    """
+    if chat_history is None:
+        chat_history = []
+    chat_history.append([user_question, None])
+    return chat_history
 
 
 def format_sources(matched_documents: pd.DataFrame) -> str:
@@ -24,32 +44,42 @@ def format_sources(matched_documents: pd.DataFrame) -> str:
 
 
 def add_sources(history, completion):
+    final_generation = history[-1][1]
+    formatted_sources = None
+
     if completion.answer_relevant:
         formatted_sources = format_sources(completion.matched_documents)
         history.append([None, formatted_sources])
 
+    end_chain(outputs={"response": final_generation, "formatted_sources": formatted_sources})
+
     return history
 
 
-def user(user_input, history):
-    """Adds user's question immediately to the chat."""
-    return "", history + [[user_input, None]]
+def chat(chat_history: ChatHistory) -> Tuple[ChatHistory, Completion]:
+    """Answer a user's question using retrieval augmented generation."""
+
+    # We assume that the question is the user's last interaction
+    user_input = chat_history[-1][0]
+
+    start_chain(inputs={"user_input": user_input}, project="buster-test")
+
+    with Span({"user_input": user_input}, "llm-generation") as span:
+        completion = buster.process_input(user_input)
+
+        # Stream tokens one at a time to the user
+        chat_history[-1][1] = ""
+        for token in completion.answer_generator:
+            chat_history[-1][1] += token
+
+            yield chat_history, completion
+
+        final_generation = chat_history[-1][1]
+
+    span.set_outputs({"generation": final_generation})
 
 
-def chat(history):
-    user_input = history[-1][0]
-
-    completion = buster.process_input(user_input)
-
-    history[-1][1] = ""
-
-    for token in completion.answer_generator:
-        history[-1][1] += token
-
-        yield history, completion
-
-
-block = gr.Blocks(css="#chatbot .overflow-y-auto{height:500px}")
+block = gr.Blocks()
 
 with block:
     with gr.Row():
@@ -60,10 +90,10 @@ with block:
     with gr.Row():
         question = gr.Textbox(
             label="What's your question?",
-            placeholder="Ask a question to AI stackoverflow here...",
+            placeholder="Type your question here...",
             lines=1,
         )
-        submit = gr.Button(value="Send", variant="secondary").style(full_width=False)
+        submit = gr.Button(value="Send", variant="secondary")
 
     examples = gr.Examples(
         examples=[
@@ -80,12 +110,35 @@ with block:
 
     response = gr.State()
 
-    submit.click(user, [question, chatbot], [question, chatbot], queue=False).then(
-        chat, inputs=[chatbot], outputs=[chatbot, response]
-    ).then(add_sources, inputs=[chatbot, response], outputs=[chatbot])
-    question.submit(user, [question, chatbot], [question, chatbot], queue=False).then(
-        chat, inputs=[chatbot], outputs=[chatbot, response]
-    ).then(add_sources, inputs=[chatbot, response], outputs=[chatbot])
+    # fmt: off
+    submit.click(
+        add_user_question,
+        inputs=[question],
+        outputs=[chatbot]
+    ).then(
+        chat,
+        inputs=[chatbot],
+        outputs=[chatbot, response]
+    ).then(
+        add_sources,
+        inputs=[chatbot, response],
+        outputs=[chatbot]
+    )
+
+    question.submit(
+        add_user_question,
+        inputs=[question],
+        outputs=[chatbot],
+    ).then(
+        chat,
+        inputs=[chatbot],
+        outputs=[chatbot, response]
+    ).then(
+        add_sources,
+        inputs=[chatbot, response],
+        outputs=[chatbot]
+    )
+    # fmt: on
 
 
 block.queue(concurrency_count=16)

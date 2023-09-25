@@ -1,6 +1,26 @@
 import os
 import urllib.request
 import zipfile
+import rich
+
+
+def convert_dataframe(df, drop_columns=None):
+    if drop_columns:
+        df = df.drop(drop_columns, axis=1)
+    converted_dataframe = df.to_dict("records")
+
+    def convert_row(row):
+        new_row = {}
+        for key, value in row.items():
+            if hasattr(value, "tolist"):
+                new_row[key] = value.tolist()
+            else:
+                new_row[key] = value
+
+        return new_row
+
+    converted_dataframe = list(map(convert_row, converted_dataframe))
+    return converted_dataframe
 
 
 def get_file_extension(filepath: str) -> str:

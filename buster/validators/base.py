@@ -1,9 +1,13 @@
+from comet_llm import Span
+import json
 import logging
 from abc import ABC, abstractmethod
 from functools import lru_cache
 
 import pandas as pd
 from openai.embeddings_utils import cosine_similarity, get_embedding
+
+from buster.utils import convert_dataframe
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -47,11 +51,25 @@ class Validator(ABC):
             return matched_documents
         logger.info("Reranking documents based on answer similarity...")
 
-        answer_embedding = self.get_embedding(
-            answer,
-            engine=self.embedding_model,
-        )
-        col = "similarity_to_answer"
-        matched_documents[col] = matched_documents.embedding.apply(lambda x: cosine_similarity(x, answer_embedding))
+        before_order = matched_documents.index.tolist()
 
-        return matched_documents.sort_values(by=col, ascending=False)
+        with Span({"input": convert_dataframe(matched_documents, drop_columns="embedding")}, "rerank_docs") as span:
+            answer_embedding = self.get_embedding(
+                answer,
+                engine=self.embedding_model,
+            )
+            col = "similarity_to_answer"
+            matched_documents[col] = matched_documents.embedding.apply(lambda x: cosine_similarity(x, answer_embedding))
+
+            sorted_matched_documents = matched_documents.sort_values(by=col, ascending=False)
+
+            after_order = matched_documents.index.tolist()
+
+            span.set_outputs(
+                {
+                    "output": convert_dataframe(sorted_matched_documents, drop_columns="embedding"),
+                    "same_order": before_order == after_order,
+                }
+            )
+
+            return sorted_matched_documents

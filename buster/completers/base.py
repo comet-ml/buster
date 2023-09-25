@@ -1,3 +1,4 @@
+from comet_llm import Span
 import logging
 import os
 import warnings
